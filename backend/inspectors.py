@@ -87,7 +87,7 @@ class BaseInspector(ABC):
         self.connect()
         return self
 
-    def __exit__(self) -> None:
+    def __exit__(self, *_) -> None:
         """
         Support for context manager (with statement).
         Automatically closes on exit.
