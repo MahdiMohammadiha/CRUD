@@ -121,6 +121,15 @@ class TableViewer(QWidget):
                 headers.append(col)
         headers += ["Edit", "Delete"]
         self.table.setHorizontalHeaderLabels(headers)
+        self.table.setSortingEnabled(True)
+
+        header_font = QFont()
+        header_font.setBold(True)
+        for col in range(self.table.columnCount()):
+            item = self.table.horizontalHeaderItem(col)
+            if item:
+                item.setFont(header_font)
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
         for row_idx, row in enumerate(data):
             row_dict = dict(zip([col[0] for col in self.schema], row))
