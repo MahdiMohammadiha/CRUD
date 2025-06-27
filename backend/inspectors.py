@@ -162,3 +162,28 @@ class PostgresInspector(BaseInspector):
             (table_name,),
         )
         return self.cursor.fetchall()
+
+    def get_primary_key(self, table_name: str, schema: str = "public") -> str | None:
+        """
+        Return the name of the primary key column for the given table.
+        """
+        if not self.cursor:
+            raise RuntimeError("Connection not established. Call connect() first.")
+
+        self.cursor.execute(
+            """
+            SELECT kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+            ON tc.constraint_name = kcu.constraint_name
+            AND tc.table_schema = kcu.table_schema
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+            AND tc.table_name = %s
+            AND tc.table_schema = %s
+            LIMIT 1
+        """,
+            (table_name, schema),
+        )
+
+        row = self.cursor.fetchone()
+        return row[0] if row else None
