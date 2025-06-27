@@ -185,5 +185,11 @@ def get_table_schema(table_name: str):
     tables = inspector.get_tables(schema=SCHEMA)
     if table_name not in tables:
         raise HTTPException(status_code=404, detail="Table not found")
-    columns = inspector.get_columns(table_name)
+    columns = inspector.get_columns(table_name, schema=SCHEMA)
     return columns
+
+
+@app.get("/api/tables/{table_name}/pk")
+def get_table_pk(table_name: str):
+    check_connection()
+    return inspector.get_primary_key(table_name, schema=SCHEMA)
