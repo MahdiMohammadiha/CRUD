@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Dynamic CRUD UI</title>
+    <style>
+        body {
+            font-family: Tahoma, sans-serif;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        button {
+            margin: 0 5px 10px 5px;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 5px;
+            background-color: #275e98;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #142a43;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 6px 10px;
+            text-align: center;
+        }
+
+        th {
+            background: #ddd;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        tr:nth-child(odd) {
+            background: #f9f9f9;
+        }
+
+        tr:nth-child(even) {
+            background: #fff;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        #tables-bar {
+            margin-bottom: 20px;
+        }
+
+        .btn-primary {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>Tables</h2>
+    <div id="tables-bar"></div>
+    <div id="table-container"></div>
+
+    <script>
+        const API_BASE_URL = "http://127.0.0.1:8000";
+
+        let tables = [];
+        let schema = [];
+        let data = [];
+        let editingRowIndex = null; // null = no edit, -1 = add new
+        let formData = {};
+        let sortState = {
+            columnIndex: null,
+            ascending: true
+        };
+
+        async function fetchJSON(url) {
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        }
+
+        async function loadTables() {
+            try {
+                tables = await fetchJSON(API_BASE_URL + "/api/tables");
+                const bar = document.getElementById("tables-bar");
+                bar.innerHTML = "";
+                tables.forEach(tbl => {
+                    const btn = document.createElement("button");
+                    btn.textContent = tbl.table;
+                    btn.onclick = () => loadTableData(tbl.table);
+                    bar.appendChild(btn);
+                });
+            } catch (e) {
+                alert("Failed to load tables");
+            }
+        }
+
+        async function loadTableData(tableName) {
+            try {
+                schema = await fetchJSON(`${API_BASE_URL}/api/tables/${tableName}/schema`);
+                data = await fetchJSON(`${API_BASE_URL}/api/tables/${tableName}`);
+
+                editingRowIndex = null;
+                formData = {};
+                sortState = { columnIndex: null, ascending: true }; // Reset sort state
+                renderTable(tableName);
+            } catch (e) {
+                alert("Failed to load table data");
+            }
+        }
+
+        function renderTable(tableName) {
+            const container = document.getElementById("table-container");
+            container.innerHTML = "";
+
+            const title = document.createElement("h3");
+            title.textContent = `Table: ${tableName}`;
+            container.appendChild(title);
+
+            const addBtn = document.createElement("button");
+            addBtn.textContent = "Add Record";
+            addBtn.onclick = () => {
+                editingRowIndex = -1; // add new
+                formData = {};
+                renderTable(tableName);
+            };
+            container.appendChild(addBtn);
+
+            const table = document.createElement("table");
+            container.appendChild(table);
+
+            // header
+            const thead = document.createElement("thead");
+            const trHead = document.createElement("tr");
+
+            schema.forEach(([col], colIndex) => {
+                const th = document.createElement("th");
+                th.textContent = col;
+                th.onclick = () => {
+                    if (sortState.columnIndex === colIndex) {
+                        sortState.ascending = !sortState.ascending;
+                    } else {
+                        sortState.columnIndex = colIndex;
+                        sortState.ascending = true;
+                    }
+
+                    data.sort((a, b) => {
+                        const valA = a[colIndex];
+                        const valB = b[colIndex];
+
+                        if (valA == null) return 1;
+                        if (valB == null) return -1;
+
+                        if (!isNaN(valA) && !isNaN(valB)) {
+                            return sortState.ascending ? valA - valB : valB - valA;
+                        }
+
+                        return sortState.ascending
+                            ? String(valA).localeCompare(String(valB), 'fa')
+                            : String(valB).localeCompare(String(valA), 'fa');
+                    });
+
+                    renderTable(tableName);
+                };
+
+                if (sortState.columnIndex === colIndex) {
+                    th.textContent += sortState.ascending ? " ▲" : " ▼";
+                }
+
+                trHead.appendChild(th);
+            });
+
+            trHead.appendChild(document.createElement("th")).textContent = "Edit";
+            trHead.appendChild(document.createElement("th")).textContent = "Delete";
+            thead.appendChild(trHead);
+            table.appendChild(thead);
+
+            // body
+            const tbody = document.createElement("tbody");
+            table.appendChild(tbody);
+
+            if (editingRowIndex === -1) {
+                // Add new row form
+                const tr = document.createElement("tr");
+                schema.forEach(([col]) => {
+                    const td = document.createElement("td");
+                    const input = document.createElement("input");
+                    input.type = "text";
+                    input.value = formData[col] || "";
+                    input.oninput = (e) => {
+                        formData[col] = e.target.value;
+                    };
+                    td.appendChild(input);
+                    tr.appendChild(td);
+                });
+
+                // Save button
+                const saveTd = document.createElement("td");
+                const saveBtn = document.createElement("button");
+                saveBtn.textContent = "Save";
+                saveBtn.onclick = () => addRecord(tableName);
+                saveTd.appendChild(saveBtn);
+                tr.appendChild(saveTd);
+
+                // Cancel button
+                const cancelTd = document.createElement("td");
+                const cancelBtn = document.createElement("button");
+                cancelBtn.textContent = "Cancel";
+                cancelBtn.onclick = () => {
+                    editingRowIndex = null;
+                    renderTable(tableName);
+                };
+                cancelTd.appendChild(cancelBtn);
+                tr.appendChild(cancelTd);
+
+                tbody.appendChild(tr);
+            }
+
+            data.forEach((row, idx) => {
+                const tr = document.createElement("tr");
+                if (idx % 2 === 1) tr.style.backgroundColor = "#f0f0f0";
+
+                if (editingRowIndex === idx) {
+                    // Edit mode row
+                    schema.forEach(([col], i) => {
+                        const td = document.createElement("td");
+                        const input = document.createElement("input");
+                        input.type = "text";
+                        input.value = formData[col] ?? row[i];
+                        input.oninput = (e) => {
+                            formData[col] = e.target.value;
+                        };
+                        td.appendChild(input);
+                        tr.appendChild(td);
+                    });
+
+                    // Save button
+                    const saveTd = document.createElement("td");
+                    const saveBtn = document.createElement("button");
+                    saveBtn.textContent = "Save";
+                    saveBtn.onclick = () => saveEdit(tableName, idx);
+                    saveTd.appendChild(saveBtn);
+                    tr.appendChild(saveTd);
+
+                    // Cancel button
+                    const cancelTd = document.createElement("td");
+                    const cancelBtn = document.createElement("button");
+                    cancelBtn.textContent = "Cancel";
+                    cancelBtn.onclick = () => {
+                        editingRowIndex = null;
+                        formData = {};
+                        renderTable(tableName);
+                    };
+                    cancelTd.appendChild(cancelBtn);
+                    tr.appendChild(cancelTd);
+                } else {
+                    // Normal row
+                    row.forEach((val) => {
+                        const td = document.createElement("td");
+                        td.textContent = val;
+                        tr.appendChild(td);
+                    });
+
+                    // Edit button
+                    const editTd = document.createElement("td");
+                    const editBtn = document.createElement("button");
+                    editBtn.textContent = "Edit";
+                    editBtn.onclick = () => {
+                        editingRowIndex = idx;
+                        formData = {};
+                        renderTable(tableName);
+                    };
+                    editTd.appendChild(editBtn);
+                    tr.appendChild(editTd);
+
+                    // Delete button
+                    const deleteTd = document.createElement("td");
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.textContent = "Delete";
+                    deleteBtn.onclick = () => deleteRecord(tableName, idx);
+                    deleteTd.appendChild(deleteBtn);
+                    tr.appendChild(deleteTd);
+                }
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function addRecord(tableName) {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/tables/${tableName}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData),
+                });
+                if (!res.ok) throw new Error("Failed to add record");
+                editingRowIndex = null;
+                formData = {};
+                data = await fetchJSON(`${API_BASE_URL}/api/tables/${tableName}`);
+                renderTable(tableName);
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function saveEdit(tableName, rowIndex) {
+            try {
+                const pkValue = data[rowIndex][0];
+
+                const res = await fetch(`${API_BASE_URL}/api/tables/${tableName}/${pkValue}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData),
+                });
+                if (!res.ok) throw new Error("Failed to update record");
+                editingRowIndex = null;
+                formData = {};
+                data = await fetchJSON(`${API_BASE_URL}/api/tables/${tableName}`);
+                renderTable(tableName);
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        async function deleteRecord(tableName, rowIndex) {
+            if (!confirm("Are you sure you want to delete this record?")) return;
+            try {
+                const pkValue = data[rowIndex][0];
+                const res = await fetch(`${API_BASE_URL}/api/tables/${tableName}/${pkValue}`, {
+                    method: "DELETE",
+                });
+                if (!res.ok) throw new Error("Failed to delete record");
+                data = await fetchJSON(`${API_BASE_URL}/api/tables/${tableName}`);
+                renderTable(tableName);
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        // Start:
+        loadTables();
+    </script>
+</body>
+
+</html>
