@@ -146,9 +146,9 @@ class PostgresInspector(BaseInspector):
         )
         return [row[0] for row in self.cursor.fetchall()]
 
-    def get_columns(self, table_name: str) -> list[tuple[str, str]]:
+    def get_columns(self, table_name: str, schema: str = "public") -> list[tuple[str, str]]:
         """
-        Return a list of column names and data types for the specified table.
+        Return a list of column names and data types for the specified table, in correct order.
         """
         if not self.cursor:
             raise RuntimeError("Connection not established. Call connect() first.")
@@ -157,11 +157,13 @@ class PostgresInspector(BaseInspector):
             """
             SELECT column_name, data_type
             FROM information_schema.columns
-            WHERE table_name = %s
+            WHERE table_name = %s AND table_schema = %s
+            ORDER BY ordinal_position
             """,
-            (table_name,),
+            (table_name, schema),
         )
         return self.cursor.fetchall()
+
 
     def get_primary_key(self, table_name: str, schema: str = "public") -> str | None:
         """
