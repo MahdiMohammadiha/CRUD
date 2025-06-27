@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Body
 from os import getenv
 from dotenv import load_dotenv
 from inspectors import PostgresInspector
@@ -46,20 +46,20 @@ def shutdown():
         inspector = None
 
 
-# Root endpoint: returns table + column summary
-@app.get("/")
-def root():
-    check_connection()
-    data = export_schema_summary(inspector, SCHEMA)
-    return data
-
-
 # List all tables with their API paths
 @app.get("/api/tables")
 def list_tables():
     check_connection()
     tables = inspector.get_tables(schema=SCHEMA)
     return [{"table": table, "api": f"/api/tables/{table}"} for table in tables]
+
+
+# Returns table + column summary
+@app.get("/api/tables/schema")
+def get_database_schema():
+    check_connection()
+    data = export_schema_summary(inspector, SCHEMA)
+    return data
 
 
 # Get all rows from a specific table (max 100)
@@ -72,6 +72,109 @@ def get_table_data(table_name: str):
         rows = cur.fetchall()
         return rows
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+from fastapi import Body
+
+
+@app.post("/api/tables/{table_name}")
+def insert_row(table_name: str, data: dict = Body(...)):
+    check_connection()
+
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=400, detail="Request body must be a JSON object"
+        )
+
+    try:
+        columns = list(data.keys())
+        values = list(data.values())
+
+        placeholders = ", ".join(["%s"] * len(values))
+        col_names = ", ".join(f'"{col}"' for col in columns)
+
+        query = f'INSERT INTO "{SCHEMA}"."{table_name}" ({col_names}) VALUES ({placeholders}) RETURNING *'
+
+        cur = inspector.cursor
+        cur.execute(query, values)
+        inserted = cur.fetchone()
+        inspector.conn.commit()
+
+        return inserted
+
+    except Exception as e:
+        inspector.conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/api/tables/{table_name}/{row_id}")
+def update_row(table_name: str, row_id: str, request: Request, data: dict = Body(...)):
+    check_connection()
+
+    pk_column = inspector.get_primary_key(table_name, SCHEMA)
+    if not pk_column:
+        raise HTTPException(status_code=400, detail="Primary key not found")
+
+    try:
+        if not isinstance(data, dict):
+            raise HTTPException(
+                status_code=400, detail="Request body must be a JSON object"
+            )
+
+        columns = list(data.keys())
+        values = list(data.values())
+
+        assignments = ", ".join(f'"{col}" = %s' for col in columns)
+        query = f"""
+            UPDATE "{SCHEMA}"."{table_name}"
+            SET {assignments}
+            WHERE "{pk_column}" = %s
+            RETURNING *
+            """
+
+        cur = inspector.cursor
+        cur.execute(query, values + [row_id])
+        updated = cur.fetchone()
+        inspector.conn.commit()
+
+        if not updated:
+            raise HTTPException(status_code=404, detail="Record not found")
+
+        return updated
+
+    except Exception as e:
+        inspector.conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/tables/{table_name}/{row_id}")
+def delete_row(table_name: str, row_id: str):
+    check_connection()
+
+    pk_column = inspector.get_primary_key(table_name, SCHEMA)
+    if not pk_column:
+        raise HTTPException(status_code=400, detail="Primary key not found")
+
+    try:
+        query = f"""
+            DELETE FROM "{SCHEMA}"."{table_name}"
+            WHERE "{pk_column}" = %s
+            RETURNING *
+        """
+
+        cur = inspector.cursor
+        cur.execute(query, (row_id,))
+        deleted = cur.fetchone()
+        inspector.conn.commit()
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Record not found")
+
+        return deleted
+
+    except Exception as e:
+        inspector.conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
 
