@@ -60,7 +60,6 @@
 
     <h2>Tables</h2>
     <div id="tables-bar"></div>
-
     <div id="table-container"></div>
 
     <script>
@@ -71,6 +70,10 @@
         let data = [];
         let editingRowIndex = null; // null = no edit, -1 = add new
         let formData = {};
+        let sortState = {
+            columnIndex: null,
+            ascending: true
+        };
 
         async function fetchJSON(url) {
             const res = await fetch(url);
@@ -101,6 +104,7 @@
 
                 editingRowIndex = null;
                 formData = {};
+                sortState = { columnIndex: null, ascending: true }; // Reset sort state
                 renderTable(tableName);
             } catch (e) {
                 alert("Failed to load table data");
@@ -130,12 +134,44 @@
             // header
             const thead = document.createElement("thead");
             const trHead = document.createElement("tr");
-            schema.forEach(([col]) => {
+
+            schema.forEach(([col], colIndex) => {
                 const th = document.createElement("th");
                 th.textContent = col;
-                th.onclick = () => alert("Sorting client-side not implemented yet");
+                th.onclick = () => {
+                    if (sortState.columnIndex === colIndex) {
+                        sortState.ascending = !sortState.ascending;
+                    } else {
+                        sortState.columnIndex = colIndex;
+                        sortState.ascending = true;
+                    }
+
+                    data.sort((a, b) => {
+                        const valA = a[colIndex];
+                        const valB = b[colIndex];
+
+                        if (valA == null) return 1;
+                        if (valB == null) return -1;
+
+                        if (!isNaN(valA) && !isNaN(valB)) {
+                            return sortState.ascending ? valA - valB : valB - valA;
+                        }
+
+                        return sortState.ascending
+                            ? String(valA).localeCompare(String(valB), 'fa')
+                            : String(valB).localeCompare(String(valA), 'fa');
+                    });
+
+                    renderTable(tableName);
+                };
+
+                if (sortState.columnIndex === colIndex) {
+                    th.textContent += sortState.ascending ? " ▲" : " ▼";
+                }
+
                 trHead.appendChild(th);
             });
+
             trHead.appendChild(document.createElement("th")).textContent = "Edit";
             trHead.appendChild(document.createElement("th")).textContent = "Delete";
             thead.appendChild(trHead);
@@ -159,6 +195,7 @@
                     td.appendChild(input);
                     tr.appendChild(td);
                 });
+
                 // Save button
                 const saveTd = document.createElement("td");
                 const saveBtn = document.createElement("button");
@@ -166,6 +203,7 @@
                 saveBtn.onclick = () => addRecord(tableName);
                 saveTd.appendChild(saveBtn);
                 tr.appendChild(saveTd);
+
                 // Cancel button
                 const cancelTd = document.createElement("td");
                 const cancelBtn = document.createElement("button");
@@ -269,7 +307,6 @@
 
         async function saveEdit(tableName, rowIndex) {
             try {
-                const pkCol = schema[0][0];
                 const pkValue = data[rowIndex][0];
 
                 const res = await fetch(`${API_BASE_URL}/api/tables/${tableName}/${pkValue}`, {
@@ -290,7 +327,6 @@
         async function deleteRecord(tableName, rowIndex) {
             if (!confirm("Are you sure you want to delete this record?")) return;
             try {
-                const pkCol = schema[0][0];
                 const pkValue = data[rowIndex][0];
                 const res = await fetch(`${API_BASE_URL}/api/tables/${tableName}/${pkValue}`, {
                     method: "DELETE",
@@ -306,7 +342,6 @@
         // Start:
         loadTables();
     </script>
-
 </body>
 
 </html>
