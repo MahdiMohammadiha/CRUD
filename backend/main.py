@@ -3,7 +3,7 @@ from os import getenv
 from dotenv import load_dotenv
 from inspectors import PostgresInspector
 from utils import export_schema_summary
-import psycopg2.extras
+from fastapi.middleware.cors import CORSMiddleware
 
 
 # Load .env variables
@@ -11,6 +11,15 @@ load_dotenv()
 
 # FastAPI application
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Default schema name
 SCHEMA = getenv("SCHEMA", "public")
