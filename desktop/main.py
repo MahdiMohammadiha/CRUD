@@ -7,11 +7,9 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
-    QLabel,
     QTableWidget,
     QTableWidgetItem,
     QMessageBox,
-    QScrollArea,
     QFrame,
     QDialog,
     QFormLayout,
@@ -19,6 +17,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QColor, QBrush
 
 
 API_BASE_URL = "http://127.0.0.1:8000"
@@ -53,7 +52,7 @@ class EditDialog(QDialog):
             value = self.row_data.get(col_name, "")
             field = QLineEdit(str(value))
             self.inputs[col_name] = field
-            layout.addRow(col_name, field)
+            layout.addRow(f"{col_name} ({col_type})", field)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save
@@ -95,11 +94,13 @@ class TableViewer(QWidget):
     def refresh(self):
         schema_url = f"{API_BASE_URL}/api/tables/{self.table_name}/schema"
         data_url = f"{API_BASE_URL}/api/tables/{self.table_name}"
+        pk_url = f"{API_BASE_URL}/api/tables/{self.table_name}/pk"
 
         schema_res = requests.get(schema_url)
         data_res = requests.get(data_url)
+        pk_res = requests.get(pk_url)
 
-        if not schema_res.ok or not data_res.ok:
+        if not schema_res.ok or not data_res.ok or not pk_res.ok:
             QMessageBox.critical(
                 self, "Error", f"Failed to load table: {self.table_name}"
             )
@@ -107,19 +108,38 @@ class TableViewer(QWidget):
 
         self.schema = schema_res.json()
         data = data_res.json()
-        self.pk_column = self.schema[0][0] if self.schema else None
+        self.pk_column = pk_res.json()
 
         self.table.setColumnCount(len(self.schema) + 2)  # +1 Edit, +1 Delete
         self.table.setRowCount(len(data))
-        self.table.setHorizontalHeaderLabels(
-            [col[0] for col in self.schema] + ["Edit", "Delete"]
-        )
+
+        headers = []
+        for col, col_type in self.schema:
+            if col == self.pk_column:
+                headers.append(f"{col} (PK)")
+            else:
+                headers.append(col)
+        headers += ["Edit", "Delete"]
+        self.table.setHorizontalHeaderLabels(headers)
 
         for row_idx, row in enumerate(data):
             row_dict = dict(zip([col[0] for col in self.schema], row))
 
             for col_idx, value in enumerate(row):
                 item = QTableWidgetItem(str(value))
+                col_name = self.schema[col_idx][0]
+
+                # Highlight PK column
+                if col_name == self.pk_column:
+                    font = QFont()
+                    font.setBold(True)
+                    item.setFont(font)
+                    item.setForeground(QBrush(QColor("darkblue")))
+
+                # Alternate row color
+                if row_idx % 2 == 1:
+                    item.setBackground(QBrush(QColor("#f0f0f0")))
+
                 self.table.setItem(row_idx, col_idx, item)
 
             # Edit button
