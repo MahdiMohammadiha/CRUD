@@ -25,19 +25,32 @@ API_BASE_URL = "http://127.0.0.1:8000"
 
 
 class EditDialog(QDialog):
-    def __init__(self, table_name: str, schema: list, row_data: dict, parent=None):
+    def __init__(
+        self, table_name: str, schema: list, row_data: dict = None, parent=None
+    ):
+        """
+        Dialog for adding or editing a record.
+        If row_data is None, it means add mode (empty form).
+        """
         super().__init__(parent)
-        self.setWindowTitle("Edit Record")
+        self.setWindowTitle("Edit Record" if row_data else "Add Record")
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
         self.table_name = table_name
         self.schema = schema
-        self.row_data = row_data
+        self.row_data = row_data or {}
         self.inputs = {}
 
         layout = QFormLayout()
 
+        pk_column = schema[0][0] if schema else None
+
         for col_name, col_type in schema:
-            value = row_data.get(col_name, "")
+            # For add mode, disable PK input if it exists (assuming auto-increment)
+            if row_data is None and col_name == pk_column:
+                continue
+
+            value = self.row_data.get(col_name, "")
             field = QLineEdit(str(value))
             self.inputs[col_name] = field
             layout.addRow(col_name, field)
@@ -53,6 +66,7 @@ class EditDialog(QDialog):
         self.setLayout(layout)
 
     def get_data(self):
+        """Collect input data as a dictionary"""
         return {col: field.text() for col, field in self.inputs.items()}
 
 
@@ -60,11 +74,18 @@ class TableViewer(QWidget):
     def __init__(self, table_name: str):
         super().__init__()
         self.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+
         self.table_name = table_name
         self.schema = []
         self.pk_column = None
 
         self.layout = QVBoxLayout()
+
+        # Add Record button
+        self.add_button = QPushButton("Add Record")
+        self.add_button.clicked.connect(self.add_record)
+        self.layout.addWidget(self.add_button)
+
         self.table = QTableWidget()
         self.layout.addWidget(self.table)
         self.setLayout(self.layout)
@@ -112,6 +133,18 @@ class TableViewer(QWidget):
             self.table.setCellWidget(row_idx, len(self.schema) + 1, delete_btn)
 
         self.table.resizeColumnsToContents()
+
+    def add_record(self):
+        """Open dialog in add mode"""
+        dialog = EditDialog(self.table_name, self.schema, row_data=None, parent=self)
+        if dialog.exec():
+            new_data = dialog.get_data()
+            url = f"{API_BASE_URL}/api/tables/{self.table_name}"
+            res = requests.post(url, json=new_data)
+            if res.ok:
+                self.refresh()
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to add record: {res.text}")
 
     def confirm_delete(self, row_dict):
         pk_value = row_dict.get(self.pk_column)
