@@ -5,6 +5,11 @@ from abc import ABC, abstractmethod
 class BaseInspector(ABC):
     """
     Abstract base class for database schema inspection.
+
+    This class defines a consistent interface for connecting to a database,
+    retrieving table information, and managing resources.
+    Subclasses must implement the abstract methods `connect`, `get_tables`,
+    and `get_columns` according to the database type.
     """
 
     def __init__(
@@ -16,20 +21,22 @@ class BaseInspector(ABC):
         port: int,
     ) -> None:
         """
-        Initialize connection parameters.
+        Store database connection parameters without connecting yet.
 
         Args:
-            dbname (str): Name of the database.
-            user (str): Username to connect.
-            password (str): Password for the user.
-            host (str): Host address.
-            port (int): Port number.
+            dbname: Name of the database.
+            user: Database username.
+            password: Password for the database user.
+            host: Database server host.
+            port: Database server port.
         """
         self.dbname: str = dbname
         self.user: str = user
         self.password: str = password
         self.host: str = host
         self.port: int = port
+
+        # Connection and cursor will be set when connect() is called
         self.conn: psycopg2.extensions.connection | None = None
         self.cursor: psycopg2.extensions.cursor | None = None
 
@@ -37,13 +44,13 @@ class BaseInspector(ABC):
     def connect(self) -> None:
         """
         Establish a connection to the database.
-        Must be implemented in subclasses.
+        Must be implemented in subclasses for the specific database type.
         """
         pass
 
     def close(self) -> None:
         """
-        Close the database connection and cursor.
+        Close the database connection and cursor if they are open.
         """
         if self.cursor:
             self.cursor.close()
@@ -56,48 +63,51 @@ class BaseInspector(ABC):
     @abstractmethod
     def get_tables(self, schema: str = "public") -> list[str]:
         """
-        Retrieve a list of table names from the given schema.
+        Retrieve the names of all tables in the given schema.
 
         Args:
-            schema (str): Schema name (default is "public").
+            schema: Name of the schema (default "public").
 
         Returns:
-            list[str]: List of table names.
+            A list of table names.
         """
         pass
 
     @abstractmethod
     def get_columns(self, table_name: str) -> list[tuple[str, str]]:
         """
-        Retrieve column names and data types for a specific table.
+        Retrieve column names and their data types for a given table.
 
         Args:
-            table_name (str): Name of the table.
+            table_name: The table to inspect.
 
         Returns:
-            list[tuple[str, str]]: List of (column_name, data_type) pairs.
+            A list of tuples: (column_name, data_type).
         """
         pass
 
     def __enter__(self) -> "BaseInspector":
         """
-        Support for context manager (with statement).
-        Automatically connects on entry.
+        Context manager entry point.
+        Calls connect() automatically when used with `with` statement.
         """
         self.connect()
         return self
 
     def __exit__(self, *_) -> None:
         """
-        Support for context manager (with statement).
-        Automatically closes on exit.
+        Context manager exit point.
+        Closes the connection automatically.
         """
         self.close()
 
 
 class PostgresInspector(BaseInspector):
     """
-    Concrete implementation of BaseInspector for PostgreSQL databases.
+    Inspector for PostgreSQL databases.
+
+    This class implements the abstract methods of BaseInspector
+    specifically for PostgreSQL using psycopg2.
     """
 
     def __init__(
@@ -109,16 +119,16 @@ class PostgresInspector(BaseInspector):
         port: int = 5432,
     ) -> None:
         """
-        Initialize the PostgresInspector with default host and port.
+        Initialize the PostgresInspector with PostgreSQL defaults.
         """
         super().__init__(dbname, user, password, host, port)
 
     def connect(self) -> None:
         """
-        Establish a connection to the PostgreSQL database.
-        Closes any existing connection first.
+        Connect to the PostgreSQL database using psycopg2.
+        Any existing connection will be closed first.
         """
-        self.close()  # Safely close previous connection if open
+        self.close()  # Close any old connection to avoid leaks
 
         self.conn = psycopg2.connect(
             dbname=self.dbname,
@@ -131,10 +141,16 @@ class PostgresInspector(BaseInspector):
 
     def get_tables(self, schema: str = "public") -> list[str]:
         """
-        Return a list of table names in the specified schema.
+        Get all table names from a given schema.
+
+        Args:
+            schema: Schema name (default "public").
+
+        Returns:
+            A list of table names.
         """
         if not self.cursor:
-            raise RuntimeError("Connection not established. Call connect() first.")
+            raise RuntimeError("No active connection. Call connect() first.")
 
         self.cursor.execute(
             """
@@ -146,12 +162,21 @@ class PostgresInspector(BaseInspector):
         )
         return [row[0] for row in self.cursor.fetchall()]
 
-    def get_columns(self, table_name: str, schema: str = "public") -> list[tuple[str, str]]:
+    def get_columns(
+        self, table_name: str, schema: str = "public"
+    ) -> list[tuple[str, str]]:
         """
-        Return a list of column names and data types for the specified table, in correct order.
+        Get column names and their data types for a table.
+
+        Args:
+            table_name: Table name.
+            schema: Schema name (default "public").
+
+        Returns:
+            List of (column_name, data_type) tuples in order of definition.
         """
         if not self.cursor:
-            raise RuntimeError("Connection not established. Call connect() first.")
+            raise RuntimeError("No active connection. Call connect() first.")
 
         self.cursor.execute(
             """
@@ -164,26 +189,32 @@ class PostgresInspector(BaseInspector):
         )
         return self.cursor.fetchall()
 
-
     def get_primary_key(self, table_name: str, schema: str = "public") -> str | None:
         """
-        Return the name of the primary key column for the given table.
+        Get the primary key column name for a given table.
+
+        Args:
+            table_name: Name of the table.
+            schema: Schema name (default "public").
+
+        Returns:
+            The primary key column name if found, else None.
         """
         if not self.cursor:
-            raise RuntimeError("Connection not established. Call connect() first.")
+            raise RuntimeError("No active connection. Call connect() first.")
 
         self.cursor.execute(
             """
             SELECT kcu.column_name
             FROM information_schema.table_constraints tc
             JOIN information_schema.key_column_usage kcu
-            ON tc.constraint_name = kcu.constraint_name
-            AND tc.table_schema = kcu.table_schema
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
             WHERE tc.constraint_type = 'PRIMARY KEY'
             AND tc.table_name = %s
             AND tc.table_schema = %s
             LIMIT 1
-        """,
+            """,
             (table_name, schema),
         )
 
