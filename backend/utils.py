@@ -1,7 +1,9 @@
 from inspectors import BaseInspector
 
 
-def export_schema_summary(inspector: BaseInspector, schema: str = "public") -> list[dict]:
+def export_schema_summary(
+    inspector: BaseInspector, schema: str = "public"
+) -> list:
     """
     Return a list of dictionaries summarizing all tables and their columns
     in the given schema using the provided inspector instance.
@@ -9,16 +11,19 @@ def export_schema_summary(inspector: BaseInspector, schema: str = "public") -> l
     """
     data = []
 
+    # Get all table names from the specified schema
     tables = inspector.get_tables(schema=schema)
+
     for table in tables:
+        # Get all columns for this table
         columns = inspector.get_columns(table)
+
+        # Convert column tuples into structured dicts
         column_list = [
-            {"column_name": name, "data_type": dtype}
-            for name, dtype in columns
+            {"column_name": name, "data_type": dtype} for name, dtype in columns
         ]
-        data.append({
-            "table": table,
-            "columns": column_list
-        })
+
+        # Append table summary to the list
+        data.append({"table": table, "columns": column_list})
 
     return data
