@@ -2,48 +2,142 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <title>CRUD</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUD - Dynamic PostgreSQL CRUD App</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script type="text/javascript" src="script.js" defer></script>
 </head>
 
 <body>
     <div class="container">
-        <button id="toggle-theme" title="Toggle theme">🌙</button>
-        <h1>CRUD</h1>
+        <div class="header-wrapper">
+            <h1>🚀 CRUD - Dynamic PostgreSQL CRUD App</h1>
+            <div class="header-actions">
+                <a href="https://github.com/MahdiMohammadiha/CRUD" target="_blank" class="github-link"
+                    title="View on GitHub">
+                    <i class="fab fa-github"></i>
+                </a>
+                <button id="toggle-theme" title="Toggle theme">🌙</button>
+            </div>
+        </div>
         <p>
-            A full-stack CRUD app with a <strong>FastAPI</strong> backend, a simple <strong>JavaScript</strong> web UI,
-            and a <strong>PyQt6</strong> desktop interface — designed for learning and lightweight data management.
+            <img src="https://img.shields.io/badge/python-3.11-blue" alt="Python Badge">
+            <img src="https://img.shields.io/badge/FastAPI-0.110+-green" alt="FastAPI Badge">
+            <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License Badge">
+        </p>
+        <p>
+            A full-featured project for dynamic data management (CRUD) that automatically generates CRUD APIs for every
+            table in your PostgreSQL database.
+        </p>
+        <ul>
+            <li><b>Backend:</b> FastAPI server that dynamically creates CRUD endpoints for each database table.</li>
+            <li><b>Web UI:</b> JavaScript-based web interface for viewing and managing tables and records.</li>
+            <li><b>Desktop UI:</b> PyQt6 desktop interface with similar features for local management.</li>
+        </ul>
+
+        <h2>✨ Features</h2>
+        <ul>
+            <li><b>Dynamic Table Connection:</b> Works with any PostgreSQL database and any number of tables.</li>
+            <li><b>Automatic API Generation:</b> CRUD endpoints are created for every table.</li>
+            <li><b>Simple & Fast UI:</b> Both web and desktop interfaces allow you to select tables and manage records.
+            </li>
+            <li><b>Add, Edit, Delete Records:</b> Full CRUD operations supported.</li>
+            <li><b>Column Type & Primary Key Display:</b> See data types and primary keys for each column.</li>
+            <li><b>Web Sorting:</b> Sort data easily in the web interface.</li>
+            <li><b>CORS Support:</b> Seamless frontend-backend connection.</li>
+        </ul>
+
+        <h2>📁 Project Structure</h2>
+        <pre class="code-block"><code>CRUD/
+ ├─ .gitignore
+ ├─ LICENSE
+ ├─ README.md
+ ├─ backend/                # FastAPI server and database utilities
+ │   ├─ main.py
+ │   ├─ utils.py
+ │   ├─ inspectors.py
+ │   ├─ requirements.txt
+ │   └─ exit_uvicorn.txt
+ ├─ desktop/                # PyQt6 desktop UI
+ │   ├─ main.py
+ │   └─ requirements.txt
+ ├─ web/                    # JavaScript web UI
+ │   └─ index.html
+ └─ docs/                   # Documentation and styles
+     ├─ index.html
+     ├─ style.css
+     ├─ script.js
+     └─ todo.md
+</code></pre>
+
+        <h2>⚡ Quick Start</h2>
+        <h3>1. Setup project environment:</h3>
+        <div class="subsection">
+            <p>Create a <code>.env</code> file with your database info:</p>
+            <pre class="code-block"><code>DBNAME=your_db_name
+USER=your_db_user
+PASSWORD=your_db_password
+HOST=your_db_ip
+SCHEMA=public</code></pre>
+
+            <p>Create and activate a virtual environment:</p>
+            <p><b>Windows</b></p>
+            <pre class="code-block"><code>python -m venv .venv
+.\.venv\Scripts\activate</code></pre>
+
+            <p><b>Linux / macOS</b></p>
+            <pre class="code-block"><code>python3 -m venv .venv
+source .venv/bin/activate</code></pre>
+        </div>
+        <h3>2. Backend Setup</h3>
+        <div class="subsection">
+            <pre class="code-block"><code>cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload</code></pre>
+        </div>
+
+        <h3>3. Desktop UI</h3>
+        <div class="subsection">
+            <pre class="code-block"><code>cd desktop
+pip install -r requirements.txt
+python main.py</code></pre>
+        </div>
+
+        <h3>4. Web UI</h3>
+        <div class="subsection">
+            <p>Just open <a href="web/index.html">web/index.html</a> in your browser.</p>
+        </div>
+
+        <h2>🛠️ API Documentation</h2>
+        <ul>
+            <li><code>GET /api/tables</code> : List all tables</li>
+            <li><code>GET /api/tables/{table}/schema</code> : Get columns and types for a table</li>
+            <li><code>GET /api/tables/{table}</code> : Get table records</li>
+            <li><code>POST /api/tables/{table}</code> : Add a new record</li>
+            <li><code>PUT /api/tables/{table}/{pk}</code> : Edit a record</li>
+            <li><code>DELETE /api/tables/{table}/{pk}</code> : Delete a record</li>
+        </ul>
+
+        <h3>Example Request</h3>
+        <pre class="code-block"><code>curl http://127.0.0.1:8000/api/tables</code></pre>
+
+        <h2>📜 License</h2>
+        <p>
+            This project is licensed under the MIT License. See <a href="LICENSE">LICENSE</a> for details.
         </p>
 
+        <h2>💡 Contribution</h2>
         <p>
-            🔗 View the project on
-            <a href="https://github.com/MahdiMohammadiha/CRUD" target="_blank">GitHub</a>
+            Contributions are welcome! If you have any ideas, suggestions, or bug reports, please open an issue or
+            submit a pull request.
         </p>
 
         <footer>
-            Created by <strong>Mahdi Mohammadiha</strong> &mdash; &copy; 2025
+            Created by <i>Mahdi Mohammadiha</i> &mdash; &copy; 2025 CRUD Project
         </footer>
     </div>
-
-    <script>
-        const toggleButton = document.getElementById('toggle-theme');
-        const root = document.documentElement;
-        const savedTheme = localStorage.getItem('theme');
-
-        if (savedTheme === 'dark') {
-            root.classList.add('dark');
-            toggleButton.textContent = '🌞';
-        }
-
-        toggleButton.addEventListener('click', () => {
-            const isDark = root.classList.toggle('dark');
-            toggleButton.textContent = isDark ? '🌞' : '🌙';
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        });
-    </script>
-
 </body>
 
 </html>
