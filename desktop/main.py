@@ -48,13 +48,8 @@ class EditDialog(QDialog):
         self.inputs = {}
 
         layout = QFormLayout()
-        pk_column = schema[0][0] if schema else None
 
         for col_name, col_type in schema:
-            # Skip primary key input in add mode (usually auto-increment)
-            if row_data is None and col_name == pk_column:
-                continue
-
             value = self.row_data.get(col_name, "")
             field = QLineEdit(str(value))
             self.inputs[col_name] = field
